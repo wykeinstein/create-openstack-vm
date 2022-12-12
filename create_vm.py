@@ -54,7 +54,9 @@ def get_image(image_name):
 server = dict()
 server["bdms"] = list()
 
-def construct_nova_server_dict(row, server=dict()):
+def construct_nova_server_dict(row, server=None):
+    if server == None:
+        server = dict()
     server["name"] = row["name"].strip()
     server["flavor"] = get_flavor(flavors, row["vcpus"], row["ram"])
     server["availability_zone"] = row["zone"].strip()
@@ -85,12 +87,15 @@ def construct_nova_server_dict(row, server=dict()):
             bdm["destination_type"] = "volume"
             bdm["source_type"] = "image"
             bdm["uuid"] = (get_image(row["image"])).id
-            if isinstance(row["vol_size"], int):
-                bdm["volume_size"] = row["vol_size"]
-        else:
             bdm["destination_type"] = "volume"
             if isinstance(row["vol_size"], int):
                 bdm["volume_size"] = row["vol_size"]
+            if isinstance(row["vol_size"], str):
+                bdm["volume_size"] = row["vol_size"].split()[i]
+        else:
+            bdm["destination_type"] = "volume"
+            bdm['volume_type'] = row['vol_type'].strip()
+            bdm["volume_size"] = row["vol_size"].split()[i]
             bdm["source_type"] = "blank"
         server["bdms"].append(deepcopy(bdm))
     return server
@@ -120,7 +125,7 @@ if __name__ == "__main__":
             if server_dict["image"].properties.get("cinder_img_volume_type") == server_dict["vol_type"]:
                 break
         print("creating %s" % server_dict['name'])
-        server_obj = conn.compute.create_server(availability_zone=server_dict["availability_zone"], name=server_dict["name"], image_id=(server_dict["image"]).id, flavor_id=(server_dict["flavor"]).id, block_device_mapping=server_dict["bdms"], networks=server_dict["nics"], config_drive=True)
+        server_obj = conn.compute.create_server(availability_zone=server_dict["availability_zone"], name=server_dict["name"], image_id=(server_dict["image"]).id, flavor_id=(server_dict["flavor"]).id, block_device_mapping_v2=server_dict["bdms"], networks=server_dict["nics"], config_drive=True)
         server_obj = conn.compute.wait_for_server(server_obj)
         print("%s created successfully \n" % server_dict["name"])
         #server = conn.compute.create_server(availability_zone=server["availability_zone"], name=server["name"], image_id=(server["image"]).id, flavor_id=(server["flavor"]).id, networks=server["nics"], config_drive=True, boot_from_volume=True, volume_size='200')
