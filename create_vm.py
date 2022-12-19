@@ -38,7 +38,6 @@ def get_image(image_name):
     return conn.image.find_image(image_name)
 
 #bdms = [{"boot_index": "0", "destination_type": "volume", "uuid": image.id, "source_type": "image", "volume_size": "10"},{"destination_type": "volume", "source_type": "blank", "volume_size": "5"},{"destination_type": "volume", "source_type": "blank", "volume_size": "5"}]
-#networks = [{"uuid": network.id, "fixed_ip": "192.168.1.200"}, {"uuid": network.id, "fixed_ip": "192.168.1.201"}]
 
 def construct_nova_server_dict(row):
     server = dict()
@@ -89,19 +88,16 @@ def construct_nova_server_dict(row):
     return server
 
 def create_server(server_dict, conn):
-    #print("creating %s" % server_dict['name'])
+    msg = ("creating %s" % server_dict['name'])
+    pbar = tqdm(total=100, desc=msg)
     server_obj = conn.compute.create_server(availability_zone=server_dict["availability_zone"],
                                             name=server_dict["name"], image_id=(server_dict["image"]).id,
                                             flavor_id=(server_dict["flavor"]).id,
                                             block_device_mapping_v2=server_dict["bdms"], networks=server_dict["nics"],
                                             config_drive=True)
-    #pbar.update(50)
+    pbar.update(50)
     conn.compute.wait_for_server(server_obj, wait=3600)
-    msg = ("creating %s" % server_dict['name'])
-    tqdm(total=100, desc=msg).update(100)
-    #pbar.update(100)
-    #pbar.close()
-    #print("%s created successfully \n" % server_dict["name"])
+    pbar.update(50)
 
 if __name__ == "__main__":
     # 将当前脚本执行目录设置为工作目录，并设置默认的配置文件
@@ -136,6 +132,7 @@ if __name__ == "__main__":
 
     pool.waitall()
     time.sleep(10)
+
     for index, row in df.iterrows():
         server_dict = construct_nova_server_dict(row)
         (out, err) = processutils.execute("nova", "list", "--name", server_dict['name'])
