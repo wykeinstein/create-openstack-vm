@@ -3,13 +3,11 @@ import os
 import re
 import time
 from copy import deepcopy
-
 import pandas as pd
 from oslo_concurrency import processutils
 import openstack
 from oslo_config import cfg
 import eventlet
-
 
 def set_sys_env(env_file):
     with open(env_file, 'r') as f:
