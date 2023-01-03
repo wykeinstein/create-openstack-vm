@@ -60,7 +60,7 @@ def construct_nova_server_dict(row):
     for i, j in zip(row["networks"].split(), str(row["segmentation_id"]).split()):
         network = get_network(subnets=subnets, network=i, net_type=row["net_type"], segmentation_id=int(j))
         if network is None:
-            raise ValueError("Network does not exist, please create network")
+            raise ValueError("Network %s does not exist, please create network" % i)
     netids = [get_network(subnets=subnets, network=i, net_type=row["net_type"], segmentation_id=int(j)).id for i, j in zip(row["networks"].split(), str(row["segmentation_id"]).split())]
     server["nics"] = [{"uuid": i, "fixed_ip": j} for i, j in zip(netids, row["ips"].split())]
     vol_num = int(len(row["vol_size"].split()) if isinstance(row["vol_size"], str) else 1)
@@ -121,6 +121,15 @@ if __name__ == "__main__":
     eventlet.monkey_patch(thread=False)
     pool = eventlet.GreenPool(CONF['pool_size'])
 
+    # 提前创建flavor
+    for index, row in df.iterrows():
+        flavor_name = str(row['vcpus']) + "C." + str(row['ram']) + "G"
+        flavor = get_flavor(flavors, row["vcpus"], row["ram"])
+        if flavor == None:
+            conn.create_flavor(flavor_name, row['ram']*1024, row['vcpus'], 0)
+            time.sleep(2)
+
+    # 遍历每一行来创建虚拟机
     for index, row in df.iterrows():
         server_dict = construct_nova_server_dict(row)
         conn.image.update_image_properties(image=server_dict["image"], cinder_img_volume_type=server_dict["vol_type"])
