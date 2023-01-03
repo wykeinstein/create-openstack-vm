@@ -46,7 +46,6 @@ def construct_nova_server_dict(row):
     if server['flavor'] == None:
         flavor_name = str(row['vcpus']) + "C." + str(row['ram']) + "G"
         server['flavor'] = conn.create_flavor(flavor_name, row['ram']*1024, row['vcpus'], 0)
-        #raise ValueError("Flavor does not exist, please create flavor.")
     server["availability_zone"] = row["zone"].strip()
     server["image"] = get_image(row["image"])
     if server['image'] == None:
