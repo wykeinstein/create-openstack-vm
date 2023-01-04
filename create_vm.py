@@ -1,3 +1,4 @@
+from tqdm import tqdm
 from copy import deepcopy
 import pandas as pd
 import pdb
@@ -6,8 +7,9 @@ import time
 import sys
 from oslo_config import cfg
 from oslo_concurrency import processutils
+import re
+import eventlet
 import openstack
-import  re
 
 def set_sys_env(env_file):
     with open(env_file, 'r') as f:
@@ -16,27 +18,11 @@ def set_sys_env(env_file):
             if ret:
                 os.environ[ret.group(1)] = ret.group(2)
 
-def construct_server_bdm(row):
-    if 'image' in row.keys() and 'root_disk_size' in row.keys():
-        bdm = {
-            "boot_index": "0",
-            "destination_type": "volume",
-            "source_type": "image",
-            #"uuid": (get_image(row["image"])).id,
-            "destination_type": "volume",
-            "volume_type": row["vol_type"],
-            "volume_size": row["root_disk_size"]
-        }
-    elif 'data_disk_size' in row.keys():
-        bdm = {
-            "destination_type": "volume",
-            "volume_type": row["vol_type"].strip(),
-            "volume_size": row["data_disk_size"],
-            "source_type": "blank",
-        }
-    else:
-        pass
-    return bdm
+def construct_server_nic(neutron_net, row):
+    return {"uuid": neutron_net.id, "fixed_ip": row['ip']}
+
+def get_image(image_name):
+    return conn.image.find_image(image_name)
 
 def get_network(conn, name_or_id, subnet, subnets=list()):
     for sn in subnets:
@@ -60,6 +46,31 @@ def get_flavor(conn, flavors=list(), vcpus=int(), ram=int()):
             return f
     if f is None:
         return conn.create_flavor(flavor_name, row['ram']*1024, row['vcpus'], 0)
+
+def construct_server_bdm(row):
+    if 'image' in row.keys() and 'root_disk_size' in row.keys():
+        bdm = {
+            "boot_index": "0",
+            "destination_type": "volume",
+            "source_type": "image",
+            "uuid": (get_image(row["image"])).id,
+            "destination_type": "volume",
+            "volume_type": row["vol_type"],
+            "volume_size": row["root_disk_size"]
+        }
+    elif 'data_disk_size' in row.keys():
+        bdm = {
+            "destination_type": "volume",
+            "volume_type": row["vol_type"].strip(),
+            "volume_size": row["data_disk_size"],
+            "source_type": "blank",
+        }
+    else:
+        pass
+    return bdm
+
+
+
 def create_server(server_dict, conn):
     msg = ("creating %s" % server_dict['name'])
     pbar = tqdm(total=100, desc=msg)
@@ -104,6 +115,9 @@ if __name__ == "__main__":
         vm_dict['nics'] = list()
         for index, row in df[0].iterrows():
             if row['name'] == vm:
+                print('zone is %s' % row['zone'])
+                vm_dict['image'] = get_image(row['image'])
+                vm_dict['availability_zone'] = row['zone']
                 neutron_net = get_network(conn, row['network'], row['subnet'], subnets)
                 print('neutron net is %s' % neutron_net)
                 vm_dict['nics'].append(deepcopy(construct_server_nic(neutron_net, row)))
