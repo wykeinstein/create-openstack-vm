@@ -64,7 +64,7 @@ def construct_server_bdm(row):
             "destination_type": "volume",
             "volume_type": row["vol_type"].strip(),
             "volume_size": row["data_disk_size"],
-            "source_type": "blank"
+            "source_type": "blank",
         }
     else:
         pass
@@ -79,68 +79,25 @@ def create_server(server_dict, conn):
                                             block_device_mapping_v2=server_dict["bdms"], networks=server_dict["nics"],
                                             config_drive=True)
     server_dict['id'] = server_obj.id
+    print("server status is \n")
+    print(server_obj.status)
     pbar.update(50)
     conn.compute.wait_for_server(server_obj, wait=3600)
     pbar.update(50)
-def server_is_created(conn, server):
-    server_obj = conn.compute.find_server(server.get("name"))
-    if server_obj != None and server_obj.status == "ACTIVE":
-        print("server %s is created and its status is ACTIVE" % server.get("name"))
-        return True
-    elif server_obj != None and server_obj.status == "ERROR":
-        raise Exception("The status of %s is ERROR, please delete %s first" % (server['name'], server['name']))
-    elif server_obj == None:
-        return False
-    else:
-        pass
+def server_is_created(row, vm_info_file):
+
+    pass
 
 if __name__ == "__main__":
     # 将当前脚本执行目录设置为工作目录，并设置默认的配置文件
     cur_path = os.path.dirname(os.path.abspath(__file__))
     os.chdir(cur_path)
-    default_conf_path = [os.path.join(cur_path, "config.ini")]
-    vm_info_file = os.path.join(cur_path, 'vm_info.json')
-
-    CONF = cfg.CONF
-    xls_path = cfg.StrOpt('xls', default=None, help='path to xls file')
-    auth_file = cfg.StrOpt('auth', default=None, help='path to admin-openrc.sh auth file')
-    green_pool_size = cfg.StrOpt('pool_size', default=None, help='size of greenpool')
-    CONF.register_opt(xls_path)
-    CONF.register_opt(auth_file)
-    CONF.register_opt(green_pool_size)
-    CONF(default_config_files=default_conf_path)
-    set_sys_env(CONF["auth"])
+    set_sys_env("/etc/kolla/admin-openrc.sh")
     conn = openstack.connect(region_name='RegionOne')
     flavors = [flavor for flavor in conn.compute.flavors()]
     subnets = [subnet for subnet in conn.network.subnets()]
-    df = pd.read_excel(io=os.path.abspath(CONF["xls"]), header=2, sheet_name=[0, 1, 2])
+    servers = ["cirros_test1", "cirros_test4"]
+    for server in servers:
+        svr = conn.compute.find_server(server)
+        print(svr.status)
 
-    eventlet.monkey_patch(thread=False)
-    pool = eventlet.GreenPool(CONF['pool_size'])
-
-    vms = df[0]['name'].unique()
-    vm_dict_list = list()
-    for vm in vms:
-        vm_dict = {}
-        vm_dict['name'] = vm
-        vm_dict['bdms'] = list()
-        vm_dict['nics'] = list()
-        for index, row in df[0].iterrows():
-            if row['name'] == vm:
-                vm_dict['image'] = get_image(row['image'])
-                vm_dict['availability_zone'] = row['zone']
-                neutron_net = get_network(conn, row['network'], row['subnet'], subnets)
-                vm_dict['nics'].append(deepcopy(construct_server_nic(neutron_net, row)))
-                vm_dict['bdms'].append(deepcopy(construct_server_bdm(row)))
-                vm_dict['flavor'] = get_flavor(conn, flavors=flavors, vcpus=row['vcpus'], ram=row['ram'])
-        for index, row in df[1].iterrows():
-            if row['name'] == vm:
-                vm_dict['bdms'].append(deepcopy(construct_server_bdm(row)))
-        for index, row in df[2].iterrows():
-            if row['name'] == vm:
-                neutron_net = get_network(conn, row['network'], row['subnet'], subnets)
-                vm_dict['nics'].append(deepcopy(construct_server_nic(neutron_net, row)))
-        vm_dict_list.append(vm_dict)
-    for vm in vm_dict_list:
-        if server_is_created(conn, vm) == False:
-            pool.spawn(create_server, vm, conn)
