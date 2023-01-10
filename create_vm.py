@@ -96,6 +96,18 @@ def create_server(server_dict, conn):
     conn.compute.wait_for_server(server_obj, wait=3600)
     pbar.update(50)
 
+def server_is_created(conn, server):
+    server_obj = conn.compute.find_server(server.get("name"))
+    if server_obj != None and server_obj.status == "ACTIVE":
+        print("server %s is created and its status is ACTIVE" % server.get("name"))
+        return True
+    elif server_obj != None and server_obj.status == "ERROR":
+        raise Exception("The status of %s is ERROR, please delete %s first" % (server['name'], server['name']))
+    elif server_obj == None:
+        return False
+    else:
+        pass
+
 if __name__ == "__main__":
     # 将当前脚本执行目录设置为工作目录，并设置默认的配置文件
     cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -130,11 +142,12 @@ if __name__ == "__main__":
     # 遍历每一行来创建虚拟机
     for index, row in df.iterrows():
         server_dict = construct_nova_server_dict(row)
-        conn.image.update_image_properties(image=server_dict["image"], cinder_img_volume_type=server_dict["vol_type"])
-        while True:
-            if server_dict["image"].properties.get("cinder_img_volume_type") == server_dict["vol_type"]:
-                break
-        pool.spawn(create_server, server_dict, conn)
+        if server_is_created(conn, server_dict) == False:
+            conn.image.update_image_properties(image=server_dict["image"], cinder_img_volume_type=server_dict["vol_type"])
+            while True:
+                if server_dict["image"].properties.get("cinder_img_volume_type") == server_dict["vol_type"]:
+                    break
+            pool.spawn(create_server, server_dict, conn)
 
     pool.waitall()
     time.sleep(10)
