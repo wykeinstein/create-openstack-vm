@@ -10,6 +10,7 @@ from oslo_concurrency import processutils
 import re
 import eventlet
 import openstack
+import json
 
 def set_sys_env(env_file):
     with open(env_file, 'r') as f:
@@ -69,8 +70,6 @@ def construct_server_bdm(row):
         pass
     return bdm
 
-
-
 def create_server(server_dict, conn):
     msg = ("creating %s" % server_dict['name'])
     pbar = tqdm(total=100, desc=msg)
@@ -79,15 +78,21 @@ def create_server(server_dict, conn):
                                             flavor_id=(server_dict["flavor"]).id,
                                             block_device_mapping_v2=server_dict["bdms"], networks=server_dict["nics"],
                                             config_drive=True)
+    server_dict['id'] = server_obj.id
+    print("server status is " % server_obj.status)
     pbar.update(50)
     conn.compute.wait_for_server(server_obj, wait=3600)
     pbar.update(50)
+def server_is_created(row, vm_info_file):
+
+    pass
 
 if __name__ == "__main__":
     # 将当前脚本执行目录设置为工作目录，并设置默认的配置文件
     cur_path = os.path.dirname(os.path.abspath(__file__))
     os.chdir(cur_path)
     default_conf_path = [os.path.join(cur_path, "config.ini")]
+    vm_info_file = os.path.join(cur_path, 'vm_info.json')
 
     CONF = cfg.CONF
     xls_path = cfg.StrOpt('xls', default=None, help='path to xls file')
@@ -115,11 +120,9 @@ if __name__ == "__main__":
         vm_dict['nics'] = list()
         for index, row in df[0].iterrows():
             if row['name'] == vm:
-                print('zone is %s' % row['zone'])
                 vm_dict['image'] = get_image(row['image'])
                 vm_dict['availability_zone'] = row['zone']
                 neutron_net = get_network(conn, row['network'], row['subnet'], subnets)
-                print('neutron net is %s' % neutron_net)
                 vm_dict['nics'].append(deepcopy(construct_server_nic(neutron_net, row)))
                 vm_dict['bdms'].append(deepcopy(construct_server_bdm(row)))
                 vm_dict['flavor'] = get_flavor(conn, flavors=flavors, vcpus=row['vcpus'], ram=row['ram'])
@@ -134,4 +137,6 @@ if __name__ == "__main__":
         vm_dict_list.append(vm_dict)
     for vm in vm_dict_list:
         pool.spawn(create_server, vm, conn)
+    with open(vm_info_file, 'w') as f:
+        json.dump(vm_dict_list, f, indent=4, ensure_ascii=False)
 
