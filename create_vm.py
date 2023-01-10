@@ -82,6 +82,7 @@ def create_server(server_dict, conn):
     pbar.update(50)
     conn.compute.wait_for_server(server_obj, wait=3600)
     pbar.update(50)
+
 def server_is_created(conn, server):
     server_obj = conn.compute.find_server(server.get("name"))
     if server_obj != None and server_obj.status == "ACTIVE":
