@@ -123,7 +123,7 @@ if __name__ == "__main__":
     vm_dict_list = list()
     for vm in vms:
         vm_dict = {}
-        vm_dict['name'] = vm
+        vm_dict['name'] = vm.strip()
         vm_dict['bdms'] = list()
         vm_dict['nics'] = list()
         for index, row in df[0].iterrows():
