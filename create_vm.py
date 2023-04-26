@@ -129,7 +129,7 @@ if __name__ == "__main__":
         for index, row in df[0].iterrows():
             if row['name'] == vm:
                 vm_dict['image'] = get_image(row['image'])
-                vm_dict['availability_zone'] = row['zone']
+                vm_dict['availability_zone'] = row['zone'].strip()
                 neutron_net = get_network(conn, row['network'], row['subnet'], subnets)
                 vm_dict['nics'].append(deepcopy(construct_server_nic(neutron_net, row)))
                 vm_dict['bdms'].append(deepcopy(construct_server_bdm(row)))
