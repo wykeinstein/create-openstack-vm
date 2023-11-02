@@ -37,7 +37,7 @@ def get_image(image_name):
 
 #bdms = [{"boot_index": "0", "destination_type": "volume", "uuid": image.id, "source_type": "image", "volume_size": "10"},{"destination_type": "volume", "source_type": "blank", "volume_size": "5"},{"destination_type": "volume", "source_type": "blank", "volume_size": "5"}]
 
-def construct_nova_server_dict(row):
+def construct_nova_server_dict(index, row):
     server = dict()
     server["name"] = row["name"].strip()
     server["flavor"] = get_flavor(flavors, row["vcpus"], row["ram"])
@@ -47,7 +47,7 @@ def construct_nova_server_dict(row):
     server["availability_zone"] = row["zone"].strip()
     server["image"] = get_image(row["image"])
     if server['image'] == None:
-        raise ValueError("Image does not exist, please create image.")
+        raise ValueError("Image does not exist, please create image. Error in row %d" % index)
     server["nics"] = list()
     server["vol_type"] = row["vol_type"].strip()
     server["bdms"] = list()
@@ -58,7 +58,7 @@ def construct_nova_server_dict(row):
     for i, j in zip(row["networks"].split(), str(row["segmentation_id"]).split()):
         network = get_network(subnets=subnets, network=i, net_type=row["net_type"], segmentation_id=int(j))
         if network is None:
-            raise ValueError("Network %s does not exist, please create network" % i)
+            raise ValueError("Network %s does not exist, please create network. Error in row %d" % (i, index))
     netids = [get_network(subnets=subnets, network=i, net_type=row["net_type"], segmentation_id=int(j)).id for i, j in zip(row["networks"].split(), str(row["segmentation_id"]).split())]
     server["nics"] = [{"uuid": i, "fixed_ip": j} for i, j in zip(netids, row["ips"].split())]
     vol_num = int(len(row["vol_size"].split()) if isinstance(row["vol_size"], str) else 1)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     # 遍历每一行来创建虚拟机
     for index, row in df.iterrows():
-        server_dict = construct_nova_server_dict(row)
+        server_dict = construct_nova_server_dict(index, row)
         if server_is_created(conn, server_dict) == False:
             conn.image.update_image_properties(image=server_dict["image"], cinder_img_volume_type=server_dict["vol_type"])
             while True:
